@@ -1,0 +1,43 @@
+[project]
+name = "xmark"
+version = "0.1.0"
+description = "Terminal application for browsing X (Twitter) bookmarks"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Dailen", email = "dailen@dailen.dev"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Terminals",
+]
+dependencies = [
+    "textual>=0.52.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.8.0",
+    "rich>=13.7.0",
+]
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.5.0",
+    "gitnexus>=0.1.0",
+]
+[project.scripts]
+xmark = "xmark.__main__:main"
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+[tool.pytest.ini_options]
+asyncio-mode = "auto"
