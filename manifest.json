@@ -1,0 +1,11 @@
+{
+  "id": "xmark",
+  "name": "Xmark",
+  "description": "X (Twitter) bookmarks widget for Omarchy bar",
+  "version": "0.1.0",
+  "author": "Dailen",
+  "kind": "bar-widget",
+  "entryPoints": {
+    "barWidget": "Xmark.qml"
+  }
+}

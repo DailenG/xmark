@@ -1,0 +1,7 @@
+pyproject.toml
+src/xmark.egg-info/PKG-INFO
+src/xmark.egg-info/SOURCES.txt
+src/xmark.egg-info/dependency_links.txt
+src/xmark.egg-info/entry_points.txt
+src/xmark.egg-info/requires.txt
+src/xmark.egg-info/top_level.txt
