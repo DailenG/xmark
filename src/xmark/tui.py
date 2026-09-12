@@ -18,7 +18,6 @@ from textual.widgets import (
     Markdown,
     Static,
 )
-from textual.widgets._list_view import ListViewHighlight
 
 from xmark.api import XBookmarkClient, XAPIError
 from xmark.models import BookmarkCollection, Tweet, MediaType
@@ -390,7 +389,6 @@ class XmarkApp(App):
         width: 1fr;
     }
     .author-name {
-        font-size: 150%;
     }
     .detail-media {
         margin: 1 0;

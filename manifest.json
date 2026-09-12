@@ -1,10 +1,13 @@
 {
-  "id": "xmark",
+  "schemaVersion": 1,
+  "id": "dailen.xmark",
   "name": "Xmark",
-  "description": "X (Twitter) bookmarks widget for Omarchy bar",
   "version": "0.1.0",
   "author": "Dailen",
-  "kind": "bar-widget",
+  "license": "MIT",
+  "description": "X (Twitter) bookmarks widget for Omarchy bar",
+  "kinds": ["bar-widget"],
+  "keepLoaded": false,
   "entryPoints": {
     "barWidget": "Xmark.qml"
   }
