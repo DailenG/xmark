@@ -15,10 +15,8 @@ Terminal application for browsing X (Twitter) bookmarks, with an Omarchy bar wid
 
 ## Installation
 
-### Prerequisites
-
 - Python 3.11+
-- X API Bearer Token (OAuth 2.0) with `bookmark.read` scope (and `bookmark.write` for delete)
+- An X Developer App (Native App / Public client, OAuth 2.0 with PKCE) — see [Configuration](#configuration)
 - Omarchy (for bar widget)
 
 ### Quick Install
@@ -37,8 +35,8 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e .
 
-# Configure token
-echo "X_BEARER_TOKEN=your_token_here" > .env
+# Configure Client ID (see Configuration below), then authorize:
+xmark --login
 
 # Install Omarchy widget
 cp manifest.json ~/.config/omarchy/plugins/xmark/
@@ -49,19 +47,27 @@ omarchy-bar restart
 
 ## Configuration
 
-Create a `.env` file in the project root or set environment variable:
+Xmark uses OAuth 2.0 Authorization Code + PKCE — no client secret required, and no manually-copied tokens.
 
-```bash
-X_BEARER_TOKEN=your_bearer_token_here
-```
+1. Create an app at the [X Developer Portal](https://developer.x.com/en/portal/dashboard):
+   - **Type of App**: Native App (Public client)
+   - **Callback URI**: `http://127.0.0.1:8080/callback`
+   - **App permissions**: Read and write
+2. Copy the **Client ID** into `.env`:
+   ```bash
+   X_CLIENT_ID=your_client_id_here
+   X_CLIENT_REDIRECT=http://127.0.0.1:8080/callback
+   ```
+3. Run `xmark --login` — opens your browser, you authorize, Xmark captures the callback on a local server and stores the access + refresh token at `~/.cache/xmark/tokens.json`.
 
-Get your bearer token from the [X Developer Portal](https://developer.x.com/en/portal/dashboard).
+Xmark automatically refreshes the access token using the stored refresh token when it expires — no re-login needed unless you revoke access.
 
 ## Usage
 
 ### TUI Application
 
 ```bash
+xmark --login   # Authorize with X (one-time OAuth PKCE flow)
 xmark           # Launch interactive TUI
 xmark --count   # Print bookmark count (for bar widget)
 xmark --refresh # Force cache refresh
@@ -91,6 +97,7 @@ xmark --refresh # Force cache refresh
 ```
 src/xmark/
 ├── __main__.py    # CLI entry point
+├── auth.py        # OAuth 2.0 PKCE login flow + token store/refresh
 ├── api.py         # X API v2 client (httpx)
 ├── models.py      # Pydantic models (Bookmark, Tweet, etc.)
 └── tui.py         # Textual TUI application

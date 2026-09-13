@@ -8,6 +8,7 @@ import httpx
 from dotenv import load_dotenv
 
 from xmark.models import Bookmark, BookmarkCollection, Media, Tweet, Author, PublicMetrics, MediaType
+from xmark import auth
 
 load_dotenv()
 
@@ -26,19 +27,25 @@ class XBookmarkClient:
     CACHE_TTL = 15 * 60  # 15 minutes
 
     def __init__(self, bearer_token: Optional[str] = None):
-        self.bearer_token = bearer_token or os.getenv("X_BEARER_TOKEN")
-        if not self.bearer_token:
-            raise XAPIError("X_BEARER_TOKEN not set in environment or .env")
-        self._client = httpx.AsyncClient(
-            headers={"Authorization": f"Bearer {self.bearer_token}"},
-            timeout=30.0,
-        )
+        self._explicit_token = bearer_token
+        self._client = httpx.AsyncClient(timeout=30.0)
         self._user_id: Optional[str] = None
+
+    def _resolve_token(self) -> str:
+        token = self._explicit_token or auth.get_valid_access_token() or os.getenv("X_BEARER_TOKEN")
+        if not token:
+            raise XAPIError(
+                "Not authenticated. Run 'xmark --login' to authorize Xmark with your X account."
+            )
+        return token
+
+    def _auth_headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._resolve_token()}"}
 
     async def _get_user_id(self) -> str:
         if self._user_id:
             return self._user_id
-        resp = await self._client.get(f"{self.BASE_URL}/users/me")
+        resp = await self._client.get(f"{self.BASE_URL}/users/me", headers=self._auth_headers())
         if resp.status_code != 200:
             raise XAPIError(f"Failed to get user ID: {resp.text}", resp.status_code)
         data = resp.json()
@@ -87,6 +94,7 @@ class XBookmarkClient:
         resp = await self._client.get(
             f"{self.BASE_URL}/users/{user_id}/bookmarks",
             params=params,
+            headers=self._auth_headers(),
         )
 
         if resp.status_code == 429:
@@ -108,7 +116,7 @@ class XBookmarkClient:
             "media.fields": "type,url,preview_image_url,alt_text,width,height,duration_ms",
             "user.fields": "username,name,profile_image_url,verified",
         }
-        resp = await self._client.get(f"{self.BASE_URL}/tweets", params=params)
+        resp = await self._client.get(f"{self.BASE_URL}/tweets", params=params, headers=self._auth_headers())
         if resp.status_code != 200:
             raise XAPIError(f"Failed to fetch tweet details: {resp.text}", resp.status_code)
 
@@ -209,6 +217,7 @@ class XBookmarkClient:
         user_id = await self._get_user_id()
         resp = await self._client.delete(
             f"{self.BASE_URL}/users/{user_id}/bookmarks/{tweet_id}",
+            headers=self._auth_headers(),
         )
         if resp.status_code == 200:
             return True
