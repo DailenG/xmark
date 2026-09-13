@@ -107,36 +107,45 @@ class XBookmarkClient:
         data = resp.json()
         return self._parse_bookmarks_response(data)
 
-    def _load_count_cache(self) -> Optional[int]:
+    def _load_count_cache(self) -> Optional[dict]:
         if not self.COUNT_CACHE_FILE.exists():
             return None
         try:
-            data = json.loads(self.COUNT_CACHE_FILE.read_text())
-            if time.time() - data.get("fetched_at", 0) > self.CACHE_TTL:
-                return None
-            return data["count"]
+            return json.loads(self.COUNT_CACHE_FILE.read_text())
         except Exception:
             return None
 
-    def _save_count_cache(self, count: int) -> None:
+    def _save_count_cache(self, count: int, top_id: Optional[str]) -> None:
         self.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        self.COUNT_CACHE_FILE.write_text(json.dumps({"count": count, "fetched_at": time.time()}))
+        self.COUNT_CACHE_FILE.write_text(
+            json.dumps({"count": count, "top_id": top_id, "fetched_at": time.time()})
+        )
 
-    async def fetch_bookmark_count(self, use_cache: bool = True) -> int:
-        """Count bookmarks without pulling author/media expansions.
+    async def _peek_latest_bookmark_id(self) -> Optional[str]:
+        """Fetch just the single newest bookmark to cheaply detect change.
 
-        X bills author profile expansions as separate User:Read resources
-        ($0.010 each) on top of the bookmark reads themselves ($0.001 each).
-        A count-only check has no use for that data, so this requests bare
-        tweet ids only, paginating through every page to get an exact total.
+        max_results=1, no expansions: $0.001 total instead of $0.001-per-bookmark
+        for a full recount. X's own daily dedup makes repeat same-day peeks of
+        an unchanged top bookmark free after the first.
         """
-        if use_cache:
-            cached = self._load_count_cache()
-            if cached is not None:
-                return cached
+        user_id = await self._get_user_id()
+        resp = await self._client.get(
+            f"{self.BASE_URL}/users/{user_id}/bookmarks",
+            params={"max_results": 1},
+            headers=self._auth_headers(),
+        )
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("retry-after", "900"))
+            raise XAPIError("Rate limited", 429, retry_after)
+        if resp.status_code != 200:
+            raise XAPIError(f"Failed to check bookmarks: {resp.text}", resp.status_code)
+        data = resp.json().get("data", [])
+        return data[0]["id"] if data else None
 
+    async def _count_all_bookmarks(self) -> tuple[int, Optional[str]]:
         user_id = await self._get_user_id()
         total = 0
+        top_id: Optional[str] = None
         pagination_token: Optional[str] = None
         while True:
             params = {"max_results": 100}
@@ -153,12 +162,39 @@ class XBookmarkClient:
             if resp.status_code != 200:
                 raise XAPIError(f"Failed to fetch bookmark count: {resp.text}", resp.status_code)
             data = resp.json()
-            total += len(data.get("data", []))
+            page = data.get("data", [])
+            if page and top_id is None:
+                top_id = page[0]["id"]
+            total += len(page)
             pagination_token = data.get("meta", {}).get("next_token")
             if not pagination_token:
                 break
+        return total, top_id
 
-        self._save_count_cache(total)
+    async def fetch_bookmark_count(self, use_cache: bool = True) -> int:
+        """Cheaply report the bookmark count, avoiding a full recount when nothing changed.
+
+        Strategy: peek the single newest bookmark ($0.001) and compare it to the
+        last known top bookmark. Unchanged -> reuse the cached count for free
+        (X dedups the identical peek within the same UTC day). Changed, or no
+        prior cache -> pay for one full paginated recount ($0.001/bookmark) to
+        get an accurate total.
+
+        Caveat: a bookmark removed from the middle of the list doesn't change
+        the top id, so the count can undercount deletions until the next full
+        sync (e.g. opening the TUI, which always does a full fetch).
+        """
+        cached = self._load_count_cache()
+        if use_cache and cached and time.time() - cached.get("fetched_at", 0) <= self.CACHE_TTL:
+            return cached["count"]
+
+        top_id = await self._peek_latest_bookmark_id()
+        if cached and top_id == cached.get("top_id"):
+            self._save_count_cache(cached["count"], top_id)
+            return cached["count"]
+
+        total, top_id = await self._count_all_bookmarks()
+        self._save_count_cache(total, top_id)
         return total
 
     async def fetch_tweet_details(self, tweet_ids: list[str]) -> dict[str, Tweet]:
