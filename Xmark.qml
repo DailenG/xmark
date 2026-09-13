@@ -8,22 +8,15 @@ BarWidget {
     property bool hasNewBookmarks: false
     property var lastSeenCount: 0
 
-    readonly property int pollInterval: 60000
-
-    Timer {
-        id: pollTimer
-        interval: pollInterval
-        running: true
-        repeat: true
-        onTriggered: updateCount()
-    }
+    // No automatic polling timer. Bookmark count is only refreshed when the
+    // user explicitly triggers it: bar startup (once), right-click "Refresh",
+    // or after closing Xmark (which may have added/deleted bookmarks).
 
     Component.onCompleted: {
-        updateCount()
-        lastSeenCount = bookmarkCount
+        updateCount(true)
     }
 
-    function updateCount() {
+    function updateCount(clearSeen) {
         var process = Qt.createComponent("Process.qml")
         if (process.status === Component.Ready) {
             var proc = process.createObject(root, {
@@ -33,7 +26,12 @@ BarWidget {
                     var count = parseInt(output.trim())
                     if (!isNaN(count)) {
                         bookmarkCount = count
-                        hasNewBookmarks = count > lastSeenCount
+                        if (clearSeen === true) {
+                            lastSeenCount = count
+                            hasNewBookmarks = false
+                        } else {
+                            hasNewBookmarks = count > lastSeenCount
+                        }
                     }
                 }
             })
@@ -47,8 +45,7 @@ BarWidget {
                 "program": "ghostty",
                 "arguments": ["-e", "xmark"],
                 "onFinished": function() {
-                    lastSeenCount = bookmarkCount
-                    hasNewBookmarks = false
+                    refresh(true)
                 }
             })
         }
@@ -58,14 +55,14 @@ BarWidget {
         Qt.openUrlExternally("https://x.com/i/bookmarks")
     }
 
-    function refresh() {
+    function refresh(clearSeen) {
         var process = Qt.createComponent("Process.qml")
         if (process.status === Component.Ready) {
             process.createObject(root, {
                 "program": "xmark",
                 "arguments": ["--refresh"],
                 "onFinished": function() {
-                    updateCount()
+                    updateCount(clearSeen === true)
                 }
             })
         }

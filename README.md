@@ -87,9 +87,9 @@ xmark --refresh # Force cache refresh
 
 ### Omarchy Bar Widget
 
-- **Left-click**: Opens Xmark TUI in terminal
+- **Left-click**: Opens Xmark TUI in terminal, then refreshes the count on close
 - **Right-click**: Menu with "Open Xmark", "Refresh", "Open X.com/bookmarks"
-- **Auto-refresh**: Polls every 60 seconds
+- **Manual refresh only** (no background polling): count updates once on bar startup, and whenever you explicitly click, open Xmark, or hit "Refresh" — this keeps X API credit usage tied to actual use, not a timer
 - **Notification dot**: Blue badge appears when new bookmarks since last view
 
 ## Architecture
