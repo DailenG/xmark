@@ -37,8 +37,8 @@ class BookmarkCard(Static):
         metrics = t.public_metrics
 
         with Horizontal(classes="card-row"):
-            if author.profile_image_url:
-                yield Label(str(author.profile_image_url), classes="avatar", markup=False)
+            initial = (author.name[:1] or author.username[:1] or "?").upper()
+            yield Label(initial, classes="avatar", markup=False)
             with Vertical(classes="card-content"):
                 yield Label(f"[b]{author.name}[/b] @{author.username}", classes="author")
                 yield Label(t.text[:200] + ("..." if len(t.text) > 200 else ""), classes="tweet-text")
@@ -239,8 +239,8 @@ class BookmarkDetailScreen(Screen):
         with Container(id="detail-container"):
             with VerticalScroll(id="detail-scroll"):
                 with Horizontal(classes="detail-header"):
-                    if author.profile_image_url:
-                        yield Label(str(author.profile_image_url), classes="avatar-large", markup=False)
+                    initial = (author.name[:1] or author.username[:1] or "?").upper()
+                    yield Label(initial, classes="avatar-large", markup=False)
                     with Vertical(classes="author-info"):
                         yield Label(f"[b]{author.name}[/b] @{author.username}", classes="author-name")
                         yield Label(t.created_at.strftime("%B %d, %Y at %I:%M %p"), classes="timestamp")
@@ -319,16 +319,22 @@ class XmarkApp(App):
         padding: 1;
     }
     .avatar {
-        width: 6;
-        height: 6;
+        width: 4;
+        height: 2;
         content-align: center middle;
         margin-right: 1;
+        background: $accent-darken-1;
+        color: $text;
+        text-style: bold;
     }
     .avatar-large {
-        width: 10;
-        height: 10;
+        width: 6;
+        height: 3;
         content-align: center middle;
         margin-right: 2;
+        background: $accent-darken-1;
+        color: $text;
+        text-style: bold;
     }
     .card-content {
         width: 1fr;
