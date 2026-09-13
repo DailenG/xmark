@@ -24,6 +24,7 @@ class XBookmarkClient:
     BASE_URL = "https://api.twitter.com/2"
     CACHE_DIR = Path.home() / ".cache" / "xmark"
     CACHE_FILE = CACHE_DIR / "bookmarks.json"
+    COUNT_CACHE_FILE = CACHE_DIR / "count.json"
     CACHE_TTL = 15 * 60  # 15 minutes
 
     def __init__(self, bearer_token: Optional[str] = None):
@@ -105,6 +106,60 @@ class XBookmarkClient:
 
         data = resp.json()
         return self._parse_bookmarks_response(data)
+
+    def _load_count_cache(self) -> Optional[int]:
+        if not self.COUNT_CACHE_FILE.exists():
+            return None
+        try:
+            data = json.loads(self.COUNT_CACHE_FILE.read_text())
+            if time.time() - data.get("fetched_at", 0) > self.CACHE_TTL:
+                return None
+            return data["count"]
+        except Exception:
+            return None
+
+    def _save_count_cache(self, count: int) -> None:
+        self.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        self.COUNT_CACHE_FILE.write_text(json.dumps({"count": count, "fetched_at": time.time()}))
+
+    async def fetch_bookmark_count(self, use_cache: bool = True) -> int:
+        """Count bookmarks without pulling author/media expansions.
+
+        X bills author profile expansions as separate User:Read resources
+        ($0.010 each) on top of the bookmark reads themselves ($0.001 each).
+        A count-only check has no use for that data, so this requests bare
+        tweet ids only, paginating through every page to get an exact total.
+        """
+        if use_cache:
+            cached = self._load_count_cache()
+            if cached is not None:
+                return cached
+
+        user_id = await self._get_user_id()
+        total = 0
+        pagination_token: Optional[str] = None
+        while True:
+            params = {"max_results": 100}
+            if pagination_token:
+                params["pagination_token"] = pagination_token
+            resp = await self._client.get(
+                f"{self.BASE_URL}/users/{user_id}/bookmarks",
+                params=params,
+                headers=self._auth_headers(),
+            )
+            if resp.status_code == 429:
+                retry_after = int(resp.headers.get("retry-after", "900"))
+                raise XAPIError("Rate limited", 429, retry_after)
+            if resp.status_code != 200:
+                raise XAPIError(f"Failed to fetch bookmark count: {resp.text}", resp.status_code)
+            data = resp.json()
+            total += len(data.get("data", []))
+            pagination_token = data.get("meta", {}).get("next_token")
+            if not pagination_token:
+                break
+
+        self._save_count_cache(total)
+        return total
 
     async def fetch_tweet_details(self, tweet_ids: list[str]) -> dict[str, Tweet]:
         if not tweet_ids:

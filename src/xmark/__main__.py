@@ -10,8 +10,8 @@ from xmark.tui import main as run_tui
 async def get_count(refresh: bool = False) -> int:
     async with XBookmarkClient() as client:
         try:
-            collection = await client.fetch_bookmarks(use_cache=not refresh)
-            return collection.count
+            count = await client.fetch_bookmark_count(use_cache=not refresh)
+            return count
         except XAPIError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 0
